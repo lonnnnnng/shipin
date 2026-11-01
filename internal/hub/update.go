@@ -27,7 +27,7 @@ import (
 const releaseRepo = "lonnnnnng/video-hub-go"
 
 var releaseVersion = regexp.MustCompile(`^v([0-9]+)\.([0-9]+)\.([0-9]+)$`)
-var serviceNamePattern = regexp.MustCompile(`^[a-z][a-z0-9-]*$`)
+var serviceNamePattern = regexp.MustCompile(`^[a-z][a-z0-9_-]*$`)
 
 type githubRelease struct {
 	Tag         string `json:"tag_name"`

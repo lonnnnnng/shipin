@@ -81,7 +81,7 @@ cd /home/lee/video-hub-go
 | 环境变量 | 默认值 | 作用 |
 | --- | --- | --- |
 | `MOVIEHUB_SYSTEMD_SCOPE` | `user` | `user` 调用 `systemctl --user`；`system` 调用系统级 `systemctl`。 |
-| `MOVIEHUB_SERVICE_NAME` | `video-hub-go` | systemd unit 名，不带 `.service`；升级命令使用小写字母、数字和连字符。 |
+| `MOVIEHUB_SERVICE_NAME` | `video-hub-go` | systemd unit 名，不带 `.service`；升级命令使用小写字母开头，后接小写字母、数字、连字符或下划线。 |
 | `MOVIEHUB_BINARY` | 脚本同目录的 `moviehub`；若不存在，则使用上上级目录的 `bin/moviehub` | `update` 要替换的程序文件；必须是普通文件。 |
 | `MOVIEHUB_HEALTH_URL` | 从 unit 的 `ExecStart --listen` 推导 | 健康检查 URL；仅在 unit 没有 `--listen` 或需覆盖地址时设置，例如 `http://192.168.1.2:4444/healthz`。 |
 
@@ -96,11 +96,13 @@ MOVIEHUB_BINARY=/home/lee/my-video-hub/bin/moviehub \
 若按 [Linux 部署说明](linux-deployment.md) 把脚本安装到 `/usr/local/bin`、把程序装到 `/opt/moviehub/bin/moviehub`，则为系统服务显式指定范围与程序路径：
 
 ```bash
-MOVIEHUB_SYSTEMD_SCOPE=system MOVIEHUB_BINARY=/opt/moviehub/bin/moviehub \
+MOVIEHUB_SYSTEMD_SCOPE=system MOVIEHUB_SERVICE_NAME=video-hub-go MOVIEHUB_BINARY=/opt/moviehub/bin/moviehub \
   /usr/local/bin/moviehub-service check-update
-sudo env MOVIEHUB_SYSTEMD_SCOPE=system MOVIEHUB_BINARY=/opt/moviehub/bin/moviehub \
+sudo env MOVIEHUB_SYSTEMD_SCOPE=system MOVIEHUB_SERVICE_NAME=video-hub-go MOVIEHUB_BINARY=/opt/moviehub/bin/moviehub \
   /usr/local/bin/moviehub-service update
 ```
+
+若 unit 使用其他名称，请在两条命令中将 `MOVIEHUB_SERVICE_NAME` 替换为 unit 名称（不带 `.service`）。
 
 系统服务的 `update` 需要有权替换程序并重启该 unit；用户服务则以其属主执行。若 `health` 无法从 unit 解析监听地址，可以为单条命令设置 `MOVIEHUB_HEALTH_URL`。端口改为 `4444` 后，旧版 `4488` 地址不应再用于健康检查。
 

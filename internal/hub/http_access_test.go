@@ -68,3 +68,30 @@ func TestDetailReturnsEpisodeURL(t *testing.T) {
 		t.Fatalf("详情接口未返回站源播放地址：%+v", video.Lines)
 	}
 }
+
+func TestDetailUpstreamFailureReturnsBadGateway(t *testing.T) {
+	upstream := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		http.Error(w, "upstream unavailable", http.StatusServiceUnavailable)
+	}))
+	defer upstream.Close()
+
+	store, err := OpenStore(filepath.Join(t.TempDir(), "data"), t.TempDir())
+	if err != nil {
+		t.Fatal(err)
+	}
+	defer store.Close()
+	if err := store.Update(func(state *State) error {
+		state.Sources = []Source{{ID: "test-source", API: upstream.URL, Enabled: true}}
+		return nil
+	}); err != nil {
+		t.Fatal(err)
+	}
+	service := NewService(store)
+	service.CMS = &CMS{Client: upstream.Client()}
+	request := httptest.NewRequest(http.MethodGet, "http://192.168.1.2:4444/api/detail?sourceId=test-source&id=1", nil)
+	response := httptest.NewRecorder()
+	service.Handler().ServeHTTP(response, request)
+	if response.Code != http.StatusBadGateway {
+		t.Fatalf("上游失败状态 = %d，期望 %d：%s", response.Code, http.StatusBadGateway, response.Body.String())
+	}
+}

@@ -96,3 +96,19 @@ func TestReleaseBoundaries(t *testing.T) {
 		t.Fatal("duplicate asset accepted")
 	}
 }
+
+func TestServiceNamePatternMatchesSupportedUnitNames(t *testing.T) {
+	for _, tc := range []struct {
+		name string
+		want bool
+	}{
+		{"video-hub-go", true},
+		{"my_video_hub", true},
+		{"-video-hub", false},
+		{"Video-Hub", false},
+	} {
+		if got := serviceNamePattern.MatchString(tc.name); got != tc.want {
+			t.Errorf("service name %q accepted = %v, want %v", tc.name, got, tc.want)
+		}
+	}
+}

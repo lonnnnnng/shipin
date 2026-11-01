@@ -125,22 +125,22 @@ func (c *CMS) get(ctx context.Context, raw string, headers map[string]string, va
 	}
 	res, err := c.Client.Do(req)
 	if err != nil {
-		return errors.New("资源站连接失败或超时")
+		return upstreamAPIError(ctx, "资源站连接失败或超时", err)
 	}
 	defer res.Body.Close()
 	if res.StatusCode != 200 {
-		return fmt.Errorf("资源站返回 HTTP %d", res.StatusCode)
+		return withAPIStatus(fmt.Errorf("资源站返回 HTTP %d", res.StatusCode), http.StatusBadGateway)
 	}
 	b, err := io.ReadAll(io.LimitReader(res.Body, 16<<20+1))
 	if err != nil {
-		return errors.New("读取资源站响应失败")
+		return withAPIStatus(errors.New("读取资源站响应失败"), http.StatusBadGateway)
 	}
 	if len(b) > 16<<20 {
-		return errors.New("资源站响应超过 16 MiB")
+		return withAPIStatus(errors.New("资源站响应超过 16 MiB"), http.StatusBadGateway)
 	}
 	b = []byte(strings.TrimPrefix(string(b), "\ufeff"))
 	if json.Unmarshal(b, value) != nil {
-		return errors.New("资源站未返回有效 JSON")
+		return withAPIStatus(errors.New("资源站未返回有效 JSON"), http.StatusBadGateway)
 	}
 	return nil
 }
@@ -434,7 +434,7 @@ func (c *CMS) query(ctx context.Context, s Source, action string, values url.Val
 	u.RawQuery = q.Encode()
 	e = c.get(ctx, u.String(), s.Headers, &result)
 	if e == nil && result.Code != "" && result.Code != "1" {
-		e = errors.New("资源站拒绝请求")
+		e = withAPIStatus(errors.New("资源站拒绝请求"), http.StatusBadGateway)
 	}
 	return result, e
 }

@@ -28,6 +28,37 @@ func writeJSON(w http.ResponseWriter, code int, v any) {
 	_ = json.NewEncoder(w).Encode(v)
 }
 
+// long: 仅显式标记的上游错误映射为网关状态，参数与业务校验仍保持 400。
+type apiStatusError struct {
+	status int
+	err    error
+	cause  error
+}
+
+func (e *apiStatusError) Error() string { return e.err.Error() }
+func (e *apiStatusError) Unwrap() error {
+	if e.cause != nil {
+		return e.cause
+	}
+	return e.err
+}
+
+func withAPIStatus(err error, status int) error {
+	if err == nil {
+		return nil
+	}
+	return &apiStatusError{status: status, err: err}
+}
+
+// long: 上游超时使用 504，其余上游不可用或响应无效时使用 502，同时保留安全的用户提示。
+func upstreamAPIError(ctx context.Context, message string, cause error) error {
+	status := http.StatusBadGateway
+	if errors.Is(cause, context.DeadlineExceeded) || errors.Is(ctx.Err(), context.DeadlineExceeded) {
+		status = http.StatusGatewayTimeout
+	}
+	return &apiStatusError{status: status, err: errors.New(message), cause: cause}
+}
+
 type apiResponseWriter struct {
 	http.ResponseWriter
 	status int
@@ -119,7 +150,12 @@ func (s *Service) Handler() http.Handler {
 			tracked := &apiResponseWriter{ResponseWriter: w}
 			started := time.Now()
 			if err := handler(tracked, r); err != nil {
-				writeJSON(tracked, 400, map[string]string{"error": err.Error()})
+				status := http.StatusBadRequest
+				var statusErr *apiStatusError
+				if errors.As(err, &statusErr) {
+					status = statusErr.status
+				}
+				writeJSON(tracked, status, map[string]string{"error": err.Error()})
 			}
 			// long: 请求日志只记路由模板，搜索词、播放 URL、令牌和请求体都不能写入日志。
 			if pattern != "GET /api/state" {
@@ -132,7 +168,7 @@ func (s *Service) Handler() http.Handler {
 		defer cancel()
 		info, err := s.updates.info(ctx, false)
 		if err != nil {
-			return err
+			return upstreamAPIError(ctx, err.Error(), err)
 		}
 		writeJSON(w, 200, info)
 		return nil
@@ -146,7 +182,7 @@ func (s *Service) Handler() http.Handler {
 		defer cancel()
 		info, err := s.updates.info(ctx, true)
 		if err != nil {
-			return err
+			return upstreamAPIError(ctx, err.Error(), err)
 		}
 		writeJSON(w, 200, info)
 		return nil

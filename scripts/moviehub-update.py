@@ -170,7 +170,7 @@ def main():
     arch = {"x86_64": "amd64", "aarch64": "arm64"}.get(platform.machine())
     if platform.system() != "Linux" or arch is None:
         raise RuntimeError("仅支持 Linux amd64/arm64")
-    if not re.fullmatch(r"[a-z][a-z0-9-]*", SERVICE):
+    if not re.fullmatch(r"[a-z][a-z0-9_-]*", SERVICE):
         raise RuntimeError("服务名格式无效")
     url = health_url()
     current = current_version(url)

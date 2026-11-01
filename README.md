@@ -46,7 +46,17 @@ esac
 release_url="https://github.com/lonnnnnng/video-hub-go/releases/download/$version"
 curl --fail --location "$release_url/moviehub-linux-$arch" -o moviehub
 curl --fail --location "$release_url/SHA256SUMS" -o SHA256SUMS
-awk -v asset="moviehub-linux-$arch" '$2 == asset {print $1 "  moviehub"}' SHA256SUMS | sha256sum -c -
+# long: 校验项缺失、重复或格式错误时必须中止，不能让空输入绕过二进制校验。
+awk -v asset="moviehub-linux-$arch" '
+  $2 == asset {
+    count++
+    if (count > 1 || length($1) != 64 || $1 ~ /[^[:xdigit:]]/) exit 1
+    print $1 "  moviehub"
+  }
+  END {
+    if (count != 1) exit 1
+  }
+' SHA256SUMS | sha256sum --check --strict -
 chmod 0755 moviehub
 mkdir -p data media
 ./moviehub --listen 127.0.0.1:4444 --data-dir ./data --media-dir ./media
