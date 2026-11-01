@@ -2,12 +2,12 @@
 set -euo pipefail
 
 project_root="$(cd "$(dirname "${BASH_SOURCE[0]}")/.." && pwd)"
-service_user="${MOVIEHUB_USER:-$(id -un)}"
-install_dir="${MOVIEHUB_INSTALL_DIR:-$project_root}"
-data_dir="${MOVIEHUB_DATA_DIR:-${install_dir}/data}"
-media_dir="${MOVIEHUB_MEDIA_DIR:-${install_dir}/media}"
-listen="${MOVIEHUB_LISTEN:-127.0.0.1:4444}"
-service_name="${MOVIEHUB_SERVICE_NAME:-video-hub-go}"
+service_user="${SHIPIN_USER:-${MOVIEHUB_USER:-$(id -un)}}"
+install_dir="${SHIPIN_INSTALL_DIR:-${MOVIEHUB_INSTALL_DIR:-$project_root}}"
+data_dir="${SHIPIN_DATA_DIR:-${MOVIEHUB_DATA_DIR:-${install_dir}/data}}"
+media_dir="${SHIPIN_MEDIA_DIR:-${MOVIEHUB_MEDIA_DIR:-${install_dir}/media}}"
+listen="${SHIPIN_LISTEN:-${MOVIEHUB_LISTEN:-127.0.0.1:4444}}"
+service_name="${SHIPIN_SERVICE_NAME:-${MOVIEHUB_SERVICE_NAME:-shipin}}"
 
 if [[ ! "$service_user" =~ ^[a-z_][a-z0-9_-]*$ || ! "$service_name" =~ ^[a-z][a-z0-9_-]*$ ]]; then
   printf '服务用户或服务名格式无效\n' >&2
@@ -47,9 +47,10 @@ else
   output="$(mktemp "${TMPDIR:-/tmp}/${service_name}.XXXXXXXX.service")"
 fi
 
-template="$(<"${project_root}/deploy/systemd/moviehub.service.in")"
+template="$(<"${project_root}/deploy/systemd/shipin.service.in")"
 # long: 只替换受限的用户、路径和监听值，先生成文件供管理员审阅，不直接写入 /etc 或启用服务。
 template="${template//@SERVICE_USER@/$service_user}"
+template="${template//@SERVICE_NAME@/$service_name}"
 template="${template//@INSTALL_DIR@/$install_dir}"
 template="${template//@DATA_DIR@/$data_dir}"
 template="${template//@MEDIA_DIR@/$media_dir}"

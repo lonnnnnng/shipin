@@ -24,7 +24,7 @@ import (
 	"time"
 )
 
-const releaseRepo = "lonnnnnng/video-hub-go"
+const releaseRepo = "lonnnnnng/shipin"
 
 var releaseVersion = regexp.MustCompile(`^v([0-9]+)\.([0-9]+)\.([0-9]+)$`)
 var serviceNamePattern = regexp.MustCompile(`^[a-z][a-z0-9_-]*$`)
@@ -103,7 +103,7 @@ func releaseRead(ctx context.Context, client *http.Client, address string, limit
 	if err != nil {
 		return nil, err
 	}
-	req.Header.Set("User-Agent", "video-hub-go-updater")
+	req.Header.Set("User-Agent", "shipin-updater")
 	req.Header.Set("Accept", "application/vnd.github+json")
 	res, err := client.Do(req)
 	if err != nil {
@@ -175,10 +175,19 @@ func updateCommand(ctx context.Context, scope string, args ...string) ([]byte, e
 	}
 	return exec.CommandContext(ctx, "systemctl", args...).Output()
 }
+
+// long: 新变量覆盖旧变量，既有部署只需设置原 unit 名，无须迁移媒体路径。
+func shipinEnv(name string) string {
+	if value := os.Getenv("SHIPIN_" + name); value != "" {
+		return value
+	}
+	return os.Getenv("MOVIEHUB_" + name)
+}
+
 func localUpdateTarget(ctx context.Context) (updateTarget, string) {
-	target := updateTarget{Service: os.Getenv("MOVIEHUB_SERVICE_NAME"), Scope: os.Getenv("MOVIEHUB_SYSTEMD_SCOPE")}
+	target := updateTarget{Service: shipinEnv("SERVICE_NAME"), Scope: shipinEnv("SYSTEMD_SCOPE")}
 	if target.Service == "" {
-		target.Service = "video-hub-go"
+		target.Service = "shipin"
 	}
 	if target.Scope == "" {
 		target.Scope = "user"
@@ -272,7 +281,7 @@ func (u *updateManager) info(ctx context.Context, check bool) (updateInfo, error
 			return updateInfo{}, err
 		}
 		if runtime.GOOS == "linux" {
-			for _, name := range []string{"moviehub-linux-" + runtime.GOARCH, "SHA256SUMS"} {
+			for _, name := range []string{"shipin-linux-" + runtime.GOARCH, "SHA256SUMS"} {
 				if _, err := releaseAsset(latest, name); err != nil {
 					return updateInfo{}, err
 				}
@@ -405,7 +414,7 @@ func installRelease(ctx context.Context, client *http.Client, record updateRecor
 	if !releaseVersion.MatchString(record.Version) || record.Release.Tag != record.Version {
 		return errors.New("更新版本无效")
 	}
-	name := "moviehub-linux-" + runtime.GOARCH
+	name := "shipin-linux-" + runtime.GOARCH
 	address, err := releaseAsset(record.Release, name)
 	if err != nil {
 		return err
@@ -447,7 +456,7 @@ func installRelease(ctx context.Context, client *http.Client, record updateRecor
 	if err != nil || !info.Mode().IsRegular() {
 		return errors.New("当前程序不是普通文件")
 	}
-	stage, err := os.CreateTemp(filepath.Dir(record.Target.Binary), ".moviehub-update-*")
+	stage, err := os.CreateTemp(filepath.Dir(record.Target.Binary), ".shipin-update-*")
 	if err != nil {
 		return errors.New("程序目录不可写")
 	}

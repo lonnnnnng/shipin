@@ -3,9 +3,9 @@ package hub
 import (
 	"context"
 	"encoding/json"
-	"movie-hub-go/internal/embycheck"
 	"net/http"
 	"net/http/httptest"
+	"shipin/internal/embycheck"
 	"sync/atomic"
 	"testing"
 	"time"

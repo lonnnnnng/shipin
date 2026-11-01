@@ -23,6 +23,7 @@ func jobFileNames(job Job) (media, temporary string, err error) {
 	if err != nil || !filepath.IsLocal(media) || (job.Output != "" && filepath.Clean(job.Output) != jobPath(job)) {
 		return "", "", errors.New("任务文件位置与归档规则不一致，未操作文件")
 	}
+	// long: 暂存目录和媒体收据沿用既有磁盘格式，项目改名后仍能核验和清理历史任务。
 	return media, filepath.Join(".moviehub", job.ID), nil
 }
 

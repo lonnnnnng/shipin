@@ -1,7 +1,7 @@
 package hub
 
 import (
-	"movie-hub-go/internal/embycheck"
+	"shipin/internal/embycheck"
 	"time"
 )
 

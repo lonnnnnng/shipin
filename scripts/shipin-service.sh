@@ -1,8 +1,9 @@
 #!/usr/bin/env bash
 set -euo pipefail
 
-service_name="${MOVIEHUB_SERVICE_NAME:-video-hub-go}"
-service_scope="${MOVIEHUB_SYSTEMD_SCOPE:-user}"
+# long: 旧部署可保留原 unit，显式配置服务名后继续使用同一份数据和媒体目录。
+service_name="${SHIPIN_SERVICE_NAME:-${MOVIEHUB_SERVICE_NAME:-shipin}}"
+service_scope="${SHIPIN_SYSTEMD_SCOPE:-${MOVIEHUB_SYSTEMD_SCOPE:-user}}"
 script_dir="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
 action="${1:-help}"
 if (( $# > 0 )); then shift; fi
@@ -18,7 +19,7 @@ elif [[ "$service_scope" == system ]]; then
   systemctl_cmd=(systemctl)
   journalctl_cmd=(journalctl)
 else
-  printf 'MOVIEHUB_SYSTEMD_SCOPE 必须是 user 或 system\n' >&2
+  printf 'SHIPIN_SYSTEMD_SCOPE 必须是 user 或 system\n' >&2
   exit 2
 fi
 case "$action" in
@@ -38,7 +39,7 @@ fi
 case "$action" in
   check-update|update)
     if (( $# > 0 )); then printf '%s 不接受额外参数\n' "$action" >&2; exit 2; fi
-    exec python3 "${script_dir}/moviehub-update.py" "$action"
+    exec python3 "${script_dir}/shipin-update.py" "$action"
     ;;
   status|start|stop|restart)
     if (( $# > 0 )); then printf '%s 不接受额外参数\n' "$action" >&2; exit 2; fi
@@ -53,6 +54,6 @@ case "$action" in
   health)
     if (( $# > 0 )); then printf 'health 不接受额外参数\n' >&2; exit 2; fi
     # long: 与升级器共用实际 unit 的监听地址，避免只监听局域网 IP 时误查 127.0.0.1。
-    exec python3 "${script_dir}/moviehub-update.py" health
+    exec python3 "${script_dir}/shipin-update.py" health
     ;;
 esac

@@ -11,11 +11,11 @@ import (
 	"fmt"
 	"io"
 	"log/slog"
-	"movie-hub-go/internal/diskspace"
 	"net/http"
 	"net/url"
 	"os"
 	"path/filepath"
+	"shipin/internal/diskspace"
 	"strconv"
 	"strings"
 	"sync"
@@ -75,7 +75,7 @@ func (f *hlsFetcher) get(ctx context.Context, address string, start, length int6
 		if reqErr != nil {
 			return nil, "", reqErr
 		}
-		req.Header.Set("User-Agent", "MovieHub/1.0")
+		req.Header.Set("User-Agent", "shipin/1.0")
 		for k, v := range f.headers {
 			req.Header.Set(k, v)
 		}

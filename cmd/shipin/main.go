@@ -4,12 +4,12 @@ import (
 	"context"
 	"flag"
 	"log/slog"
-	"movie-hub-go/internal/hub"
 	"net"
 	"net/http"
 	"os"
 	"os/signal"
 	"path/filepath"
+	"shipin/internal/hub"
 	"syscall"
 	"time"
 )
@@ -17,7 +17,7 @@ import (
 func main() {
 	slog.SetDefault(slog.New(slog.NewTextHandler(os.Stderr, nil)))
 	if err := run(); err != nil {
-		slog.Error("Movie Hub Go 运行失败", "error", err)
+		slog.Error("shipin 运行失败", "error", err)
 		os.Exit(1)
 	}
 }
@@ -70,7 +70,7 @@ func run() error {
 		}
 	}()
 	// long: 启动日志只记录监听和目录，不输出 JSON 状态内容。
-	slog.Info("Movie Hub Go 已启动", "listen", listener.Addr().String(), "data_dir", *data, "media_dir", abs)
+	slog.Info("shipin 已启动", "listen", listener.Addr().String(), "data_dir", *data, "media_dir", abs)
 	if err = server.Serve(listener); err != nil && err != http.ErrServerClosed {
 		// long: 监听或服务异常必须返回失败状态，systemd 才能按 Restart=on-failure 拉起服务。
 		return err

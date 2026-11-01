@@ -1,5 +1,5 @@
 [Unit]
-Description=Movie Hub Go 片库服务
+Description=shipin 片库服务
 After=network-online.target
 Wants=network-online.target
 
@@ -7,8 +7,11 @@ Wants=network-online.target
 Type=simple
 User=@SERVICE_USER@
 WorkingDirectory=@INSTALL_DIR@
+# long: 网页升级必须管理实际安装的 unit，自定义服务名不能回退到默认服务。
+Environment=SHIPIN_SERVICE_NAME=@SERVICE_NAME@
+Environment=SHIPIN_SYSTEMD_SCOPE=system
 EnvironmentFile=-@INSTALL_DIR@/.env
-ExecStart=@INSTALL_DIR@/bin/moviehub --listen @LISTEN@ --data-dir @DATA_DIR@ --media-dir @MEDIA_DIR@
+ExecStart=@INSTALL_DIR@/bin/shipin --listen @LISTEN@ --data-dir @DATA_DIR@ --media-dir @MEDIA_DIR@
 Restart=on-failure
 RestartSec=5s
 KillSignal=SIGTERM

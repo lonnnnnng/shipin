@@ -1,79 +1,72 @@
-# Linux 与 systemd 部署
+# shipin Linux 部署
 
-当前项目提供 Linux `amd64`、`arm64` 构建脚本、systemd unit 模板和管理脚本。本文介绍新建部署的通用分层布局：程序放在 `/opt/moviehub/bin/`，状态与媒体分别放在独立目录，管理脚本放在 `/usr/local/bin/`。模板生成脚本只写出待审阅的文件，不会修改 `/etc`、执行 `sudo` 或启动服务。公开 GitHub Release 提供带校验和的构建产物。
+Release 提供 Linux `amd64`、`arm64` 程序，运行机需要 FFmpeg 和 FFprobe。systemd 是后台管理与在线升级的条件；手动前台运行不需要 systemd。
 
-现有服务器使用 `/home/lee/video-hub-go/` 平铺布局，程序、两个管理脚本、`data/` 与 `media/` 同级；它的 unit 直接启动目录中的 `moviehub`。该实际目录结构和管理命令见[服务管理说明](service-management.md#当前服务器用户服务)，不要把本文的 `/opt/moviehub/bin/` 路径套用到现有服务器。
+下面是新建系统服务的示例。已有部署请先阅读[旧版迁移](service-management.md#从旧版迁移)，保留现有数据目录、媒体目录和共享权限。
 
-## 构建与准备
+## 构建与目录
 
-在有 Go 1.25+ 的构建机执行：
+构建机需要 Go 1.25+：
 
 ```bash
-./scripts/build-linux.sh
+SHIPIN_VERSION=v0.5.0 ./scripts/build-linux.sh
 (cd dist && shasum -a 256 -c SHA256SUMS)
 ```
 
-Linux 上也可用 `sha256sum -c SHA256SUMS`。把对应架构的 `moviehub-linux-amd64` 或 `moviehub-linux-arm64` 复制为 `/opt/moviehub/bin/moviehub`，保留可执行权限。以下是 Ubuntu/Debian 上首次建立专用用户和目录的示例；已有用户或目录应先检查再调整，不要覆盖已有媒体：
+也可直接下载 Release 的程序与 `SHA256SUMS`，先核对校验项和摘要再安装。以下 Ubuntu/Debian 示例创建专用系统用户；已有用户或目录先检查，不要覆盖媒体：
 
 ```bash
-sudo useradd --system --home /opt/moviehub --shell /usr/sbin/nologin moviehub
-sudo install -d -m 0755 /opt/moviehub/bin
-sudo install -d -o moviehub -g moviehub -m 0700 /var/lib/moviehub
-sudo install -d -o moviehub -g moviehub -m 2750 /srv/moviehub/media
-sudo install -m 0755 dist/moviehub-linux-amd64 /opt/moviehub/bin/moviehub
+sudo useradd --system --home /opt/shipin --shell /usr/sbin/nologin shipin
+sudo install -d -m 0755 /opt/shipin/bin
+sudo install -d -o shipin -g shipin -m 0700 /var/lib/shipin
+sudo install -d -o shipin -g shipin -m 2750 /srv/shipin/media
+sudo install -m 0755 dist/shipin-linux-amd64 /opt/shipin/bin/shipin
 ```
 
-ARM64 主机将最后一行的源文件换成 `moviehub-linux-arm64`。运行机需要 FFmpeg 和 FFprobe；若不在服务默认 `PATH` 中，在管理台设置它们的绝对路径。
+ARM64 主机把最后一行源文件换成 `shipin-linux-arm64`。服务用户需要能读写状态和媒体目录。Emby 用户需要目录遍历与文件读取权限；按实际共享组或 ACL 配置，保留既有权限，不要递归改写属主。
 
-示例部署目录：程序 `/opt/moviehub`，状态 `/var/lib/moviehub`，媒体 `/srv/moviehub/media`。请先建立非 root 服务用户，并让该用户能读写状态和媒体目录。unit 的 `UMask=0027` 会使新建媒体目录默认只向属主和属组开放；将 Emby 进程用户加入媒体目录的共享组，或为其配置等效 ACL，确保它能遍历剧集及 Season 目录。已有媒体目录的所有权和 ACL 应按实际共享方式检查，不要递归改写。Emby “电视节目”媒体库必须能读取同一媒体目录；容器部署时要挂载同一宿主目录。
+## 生成并安装 systemd unit
 
-## 生成并安装 unit
-
-在 Linux 上从本仓库目录执行；变量按真实用户和目录修改：
+从源码目录运行，按实际用户和路径设置：
 
 ```bash
-MOVIEHUB_USER=moviehub \
-MOVIEHUB_INSTALL_DIR=/opt/moviehub \
-MOVIEHUB_DATA_DIR=/var/lib/moviehub \
-MOVIEHUB_MEDIA_DIR=/srv/moviehub/media \
-MOVIEHUB_LISTEN=127.0.0.1:4444 \
+SHIPIN_USER=shipin \
+SHIPIN_INSTALL_DIR=/opt/shipin \
+SHIPIN_DATA_DIR=/var/lib/shipin \
+SHIPIN_MEDIA_DIR=/srv/shipin/media \
+SHIPIN_LISTEN=127.0.0.1:4444 \
+SHIPIN_SERVICE_NAME=shipin \
 ./scripts/render-systemd.sh
 ```
 
-脚本会打印生成的临时 `.service` 路径。核对 `User`、`ExecStart`、`EnvironmentFile`、`ReadWritePaths` 后，由管理员安装和启用：
+生成器只输出临时文件，不启用服务。路径限定为不含空格的绝对路径；将以下临时路径替换为脚本打印的真实路径。审阅 `User`、`ExecStart`、环境变量和 `ReadWritePaths` 后执行：
 
 ```bash
-sudo install -m 0644 /tmp/video-hub-go.XXXXXXXX.service /etc/systemd/system/video-hub-go.service
+sudo install -m 0644 /tmp/shipin.XXXXXXXX.service /etc/systemd/system/shipin.service
 sudo systemctl daemon-reload
-sudo systemctl enable --now video-hub-go.service
-systemctl status video-hub-go.service --no-pager
+sudo systemctl enable --now shipin.service
+systemctl status shipin.service --no-pager
 curl --fail http://127.0.0.1:4444/healthz
-sudo install -m 0755 scripts/moviehub-service.sh /usr/local/bin/moviehub-service
-sudo install -m 0644 scripts/moviehub-update.py /usr/local/bin/moviehub-update.py
+sudo install -m 0755 scripts/shipin-service.sh /usr/local/bin/shipin-service
+sudo install -m 0644 scripts/shipin-update.py /usr/local/bin/shipin-update.py
 ```
 
-把示例中的 `/tmp/video-hub-go.XXXXXXXX.service` 换成脚本打印的实际路径。局域网使用时将 `MOVIEHUB_LISTEN` 指向服务器内网地址，例如 `192.168.1.2:4444`。管理接口无需访问令牌，不要将端口映射到公网。
+模板默认面向系统服务，会写入实际服务名与 `SHIPIN_SYSTEMD_SCOPE=system`，可通过安装目录的 `.env` 覆盖。自建用户服务需要把 scope 设置为 `user`。
 
-如果在管理台把媒体目录改到 unit `ReadWritePaths` 以外，还需同步更新 unit、执行 `daemon-reload` 并重启；否则 systemd 沙箱可能阻止写入。状态目录和媒体目录也需要足够磁盘空间与共享权限。
+局域网访问可将监听地址改为服务器内网 IP。管理台没有登录，不要映射到公网。`UMask=0027` 限制媒体默认权限；更换媒体目录时还需核对共享权限和 unit 的 `ReadWritePaths`，按需重新加载、重启服务。
 
-## 管理与日志
-
-完整命令、环境变量、用户服务与系统服务示例，以及在线升级排查方式见 [服务管理脚本说明](service-management.md)。
-
-现有服务器的用户服务以 `lee` 用户从 `/home/lee/video-hub-go/` 执行 `./moviehub-service.sh status`、`logs`、`health`、`check-update`、`update`。下方 `/etc/systemd/system` 示例则是本文的通用系统服务安装方式：管理脚本安装到 `/usr/local/bin`，程序放在 `/opt/moviehub/bin/moviehub`，运行前需设置：
+## 管理与升级
 
 ```bash
-export MOVIEHUB_SYSTEMD_SCOPE=system
-export MOVIEHUB_BINARY=/opt/moviehub/bin/moviehub
-moviehub-service status
-moviehub-service check-update
-sudo --preserve-env=MOVIEHUB_SYSTEMD_SCOPE,MOVIEHUB_BINARY moviehub-service update
+SHIPIN_SYSTEMD_SCOPE=system SHIPIN_SERVICE_NAME=shipin SHIPIN_BINARY=/opt/shipin/bin/shipin \
+  /usr/local/bin/shipin-service health
+SHIPIN_SYSTEMD_SCOPE=system SHIPIN_SERVICE_NAME=shipin SHIPIN_BINARY=/opt/shipin/bin/shipin \
+  /usr/local/bin/shipin-service check-update
+sudo env SHIPIN_SYSTEMD_SCOPE=system SHIPIN_SERVICE_NAME=shipin SHIPIN_BINARY=/opt/shipin/bin/shipin \
+  /usr/local/bin/shipin-service update
+journalctl -u shipin.service -n 100 --no-pager
 ```
 
-脚本自身不调用 `sudo`。应用把结构化关键事件写到标准错误输出，由 `journalctl -u video-hub-go.service` 收集；不另建包含站源地址或密钥的应用日志文件。HTTP 日志只记录路由模板、状态码和耗时，不包含搜索词、播放 URL、请求头、请求体或 API Key。
+脚本升级需要 Python 3，先校验 Release 与 SHA256，再替换、重启并验证目标版本；失败时尝试恢复旧程序。升级前备份 JSON 状态与媒体。日志写入标准错误，由 journal 收集，HTTP 请求日志不记录搜索词、播放地址、请求体和凭据。
 
-在线升级脚本 `scripts/moviehub-update.py` 须与管理脚本放在同一目录，且由能替换程序文件、重启对应 systemd 服务的用户执行。默认针对 `video-hub-go` 用户服务与脚本上级目录的 `bin/moviehub`，健康地址从 systemd unit 的 `--listen` 参数读取；其他部署设置 `MOVIEHUB_SYSTEMD_SCOPE=system`、`MOVIEHUB_SERVICE_NAME`、`MOVIEHUB_BINARY`、`MOVIEHUB_HEALTH_URL`。更新会保留带时间戳的旧程序备份；升级失败自动恢复并重启。更新后应检查服务状态和 Emby 扫描。
-
-若服务不是通过 `--listen` 参数指定监听地址，执行 `health`、`check-update`、`update` 前设置 `MOVIEHUB_HEALTH_URL=http://实际监听地址/healthz`。
-
-升级前备份整个状态目录和媒体目录，尤其是 `settings.json`、`sources.json`、`follows.json`、`jobs.json`、`emby.json`。`update` 会自动保留旧程序并重启；升级后还需检查 journal 日志。不要只凭 `systemctl active` 判断站源下载和 Emby 扫描可用。
+完整参数、网页更新条件、用户服务和排障见[服务管理与升级](service-management.md)。

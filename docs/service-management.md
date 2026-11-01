@@ -1,117 +1,108 @@
-# Linux 服务管理脚本
+# shipin 服务管理与升级
 
-`scripts/moviehub-service.sh` 管理 systemd 服务；`health`、`check-update` 和 `update` 会调用同目录的 `moviehub-update.py`。两份脚本须放在同一目录。管理脚本仅支持运行 systemd 的 Linux；在 macOS 开发机上请用 `scripts/run.sh` 启动程序。
+`scripts/shipin-service.sh` 管理 systemd 服务，`health`、`check-update` 和 `update` 调用同目录的 `shipin-update.py`。管理命令适用于运行 systemd 的 Linux，Python 升级器需要 Python 3；macOS 开发使用 `scripts/run.sh`。
 
-## 当前服务器：用户服务
+## 用户服务
 
-当前服务器采用平铺运行目录，主程序和脚本与 `data/`、`media/` 同级；服务器目录不包含源码仓库中的 `scripts/`、文档、测试或构建产物：
+新部署默认服务名是 `shipin.service`，作用域为用户服务。程序、管理脚本和更新脚本可平铺在同一目录：
 
 ```text
-/home/lee/video-hub-go/
-├── moviehub
-├── moviehub-service.sh
-├── moviehub-update.py
+/home/lee/shipin/
+├── shipin
+├── shipin-service.sh
+├── shipin-update.py
 ├── data/
 └── media/
 ```
 
-`video-hub-go.service` 的 `ExecStart` 直接运行 `/home/lee/video-hub-go/moviehub`，数据和媒体目录分别是该目录下的 `data/`、`media/`。通过 SSH 登录服务器后，以 `lee` 用户执行管理命令，不要加 `sudo`：
+这是目录布局示例，既有服务器保留实际目录和原 unit。以服务所属用户运行：
 
 ```bash
-ssh -i ~/.ssh/id_ed25519 lee@192.168.1.2
-cd /home/lee/video-hub-go
-./moviehub-service.sh help
-./moviehub-service.sh status
-./moviehub-service.sh health
+cd /home/lee/shipin
+./shipin-service.sh status
+./shipin-service.sh health
+./shipin-service.sh logs
+./shipin-service.sh check-update
+./shipin-service.sh update
 ```
 
-当前服务名为 `video-hub-go.service`，监听 `192.168.1.2:4444`。管理页面为 `http://192.168.1.2:4444/`。`health` 会读取 unit 中的 `--listen` 参数并查询 `/healthz`，输出当前运行版本。
-
-| 命令 | 用途 |
+| 命令 | 行为 |
 | --- | --- |
-| `help` | 显示支持的命令。 |
-| `status` | 查看 systemd 服务状态。 |
-| `start`、`stop`、`restart` | 启动、停止或重启服务。运行中的下载会随服务停止而中断，重启后由队列状态恢复。 |
-| `logs` | 查看最近 100 条服务日志。 |
-| `logs -f` | 持续查看服务日志；按 `Ctrl+C` 退出日志查看，不会停止服务。 |
-| `health` | 检查运行中服务的健康接口并显示版本。 |
-| `check-update` | 查询公开 GitHub 最新正式 Release，显示当前版本和最新版本；不会安装。 |
-| `update` | 若有更新，则下载对应架构的程序并升级；已是最新版时不替换程序。 |
+| `help` | 显示帮助 |
+| `status` | 查看服务状态 |
+| `start`、`stop`、`restart` | 启停或重启服务；下载任务在重新启动后按持久化状态恢复 |
+| `logs` | 查看最近 100 条日志 |
+| `logs -f` | 跟踪日志，Ctrl+C 仅退出查看 |
+| `health` | 从 unit 的监听参数推导 `/healthz`，显示运行版本 |
+| `check-update` | 查询最新正式 Release，不安装 |
+| `update` | 校验下载、原子替换、重启、核对版本；启动失败时尝试回滚 |
 
-除 `logs -f` 外，命令不接受额外参数。`status`、`start`、`stop`、`restart` 调用 `systemctl --user`；`logs` 调用 `journalctl --user`。
+除 `logs -f` 外，各命令不接受额外参数。脚本不自动提权，执行用户需要有权管理对应 unit 和替换程序。
+
+## 环境变量
+
+| 变量 | 默认值 | 用途 |
+| --- | --- | --- |
+| `SHIPIN_SYSTEMD_SCOPE` | `user` | `user` 或 `system` |
+| `SHIPIN_SERVICE_NAME` | `shipin` | unit 名，不带 `.service`；小写字母开头，后接小写字母、数字、连字符或下划线 |
+| `SHIPIN_BINARY` | 脚本同目录的程序，或源码目录中的 `bin/shipin` | 脚本升级要替换的普通文件 |
+| `SHIPIN_HEALTH_URL` | 从 unit 的 `--listen` 推导 | 显式本机 HTTP `/healthz` 地址 |
+
+上述变量也兼容 `MOVIEHUB_` 前缀，新变量优先。更新器寻找程序时优先使用新名称，也兼容旧程序名；目录不同或存在多个程序时请显式设置 `SHIPIN_BINARY`。
+
+系统服务示例：
+
+```bash
+SHIPIN_SYSTEMD_SCOPE=system SHIPIN_SERVICE_NAME=shipin SHIPIN_BINARY=/opt/shipin/bin/shipin \
+  /usr/local/bin/shipin-service check-update
+sudo env SHIPIN_SYSTEMD_SCOPE=system SHIPIN_SERVICE_NAME=shipin SHIPIN_BINARY=/opt/shipin/bin/shipin \
+  /usr/local/bin/shipin-service update
+```
+
+自定义 unit 时替换两条命令的服务名；`sudo` 不保证继承终端环境，因此更新命令显式传入所有目标参数。服务已停止时先排查并启动，升级器需要访问健康接口。
 
 ## 网页更新
 
-管理台导航底部常驻当前版本、发行时间（北京时间）和 **检测更新** 按钮：
+管理台底部展示当前版本、发行时间和检测更新按钮。检测有新版后需要确认安装；独立 systemd 任务负责下载、SHA256 校验、原子替换、重启和版本回验，失败时尝试恢复旧程序。页面在服务重启后自动重连。
 
-1. 点击检测，查询公开仓库的最新正式 Release。
-2. 有新版时点击 **更新 v…**，确认后开始下载、SHA256 校验与原子替换。
-3. 独立 systemd 更新任务重启主服务，并核对健康接口的目标版本。页面自动重连，成功后刷新以加载新界面。
-4. 新版启动失败时尝试恢复旧程序并重启，页面显示更新或回滚结果；正在下载的任务在服务启动后重新排队。
+支持 Linux amd64/arm64，需要 `systemctl`、`systemd-run`，且 unit 主进程必须是当前程序。程序目录必须可写，unit 应通过 `--listen` 指定监听地址。普通用户运行的系统级服务使用有权限的管理脚本升级；系统级网页更新仅支持 root 服务进程。
 
-网页更新使用 Go 内置升级器，无需 Python。支持 Linux `amd64`、`arm64`，需要 `systemctl`、`systemd-run`，且被管理 unit 的主进程必须是当前程序。默认管理 `video-hub-go.service` 用户服务，程序所在目录必须可写，unit 的 `ExecStart` 必须包含 `--listen`。发行时间未注入时读取当前标签的 GitHub Release 时间；读取失败会显示“发行时间待获取”，可再次检测重试。
+将 `SHIPIN_SERVICE_NAME` 和 `SHIPIN_SYSTEMD_SCOPE` 设置在服务进程的 systemd 环境中，例如 unit 的 `Environment=` 或 `EnvironmentFile=`。只在终端设置变量不会改变已经运行的网页服务。模板生成器会为新建系统服务写入这两个变量；自建用户 unit 则显式设为 `user`。
 
-自定义 unit 时，把 `MOVIEHUB_SERVICE_NAME`（不带 `.service`）和 `MOVIEHUB_SYSTEMD_SCOPE`（`user` 或 `system`）设置在 **服务进程的 systemd 环境中**。在终端为管理脚本设置这些变量不会改变已运行的网页服务。网页更新直接定位当前可执行文件及 unit 监听地址，不使用脚本的 `MOVIEHUB_BINARY` 或 `MOVIEHUB_HEALTH_URL`。系统级服务仅在程序以 root 运行时支持网页更新；普通用户运行的系统服务使用脚本由有权限的用户升级。
-
-进度保存在 `data/web-update.json`，`web-update.json.lock` 用于独立更新任务加锁。旧二进制备份保留在程序旁的 `.previous-时间戳` 文件中。更新任务日志可查看：
+网页更新自动定位正在运行的程序，不使用脚本的 `SHIPIN_BINARY` 和 `SHIPIN_HEALTH_URL`。进度保存在 `data/web-update.json`，对应 `.lock` 文件用于加锁，旧二进制保存在程序旁的 `.previous-时间戳` 文件中。查看默认用户服务的更新任务日志：
 
 ```bash
-journalctl --user -u video-hub-go-web-update.service -n 100
+journalctl --user -u shipin-web-update.service -n 100
 ```
 
-自定义 unit 名时同步修改上述日志 unit。更新遵循服务器自身网络；检测成功后超过 30 分钟再安装，需要重新检测。升级前备份数据与媒体，失败时结合页面信息和日志检查，勿在更新期间手动替换程序。
+检测后超过 30 分钟需要重新检测。升级期间不要手动替换程序或修改更新记录；服务健康不等于下载和 Emby 入库均已验收。
 
-## 脚本在线升级
+## 从旧版迁移
 
-```bash
-cd /home/lee/video-hub-go
-./moviehub-service.sh check-update
-./moviehub-service.sh update
-./moviehub-service.sh health
-./moviehub-service.sh status
-./moviehub-service.sh logs
-```
+`v0.5.0` 首次统一项目、仓库和发行资产名称，原更新器固定校验旧路径与资产名，需要先更换为本仓库的新版脚本。
 
-`check-update` 只查询 Release 元数据，旧版服务的健康接口没有版本字段时，当前版本可能显示 `unknown`。`update` 支持 Linux `amd64`、`arm64`：下载 GitHub Release 中的对应程序及 `SHA256SUMS`，校验 SHA256 后原子替换程序、重启服务，并在 30 秒内检查 `/healthz` 是否报告目标版本。成功时打印程序旁边的旧版本备份路径（`moviehub.previous-时间戳`）。升级失败时脚本会尝试恢复旧程序并重启；若恢复或重启也失败，应查看错误输出和 `logs`，人工检查备份及服务状态。
+1. 确认原 unit 名、服务所属用户、程序路径、数据与媒体路径，等待正在运行的独立更新任务退出。
+2. 备份数据目录、程序和 unit。保留数据及媒体的实际路径，保留已有权限与 ACL；不要改写任务 JSON 中的绝对路径。
+3. 从本版本源码取出 `scripts/shipin-service.sh`、`scripts/shipin-update.py`，放在同一目录。两个脚本可管理仍沿用旧程序名和旧 unit 的服务。
+4. 为单条命令显式设置原服务名、实际程序绝对路径和服务作用域，再调用新版脚本的 `check-update`、`update`。例如：
 
-升级器使用机器本身的网络环境访问 GitHub，没有内置代理配置。`check-update` 和 `update` 都要求当前服务健康且可访问；服务已经停止时，先用 `status`、`logs` 排查并启动服务。升级前建议备份 `data/` 和 `media/`，尤其是 JSON 状态文件。升级后除 `health` 外，还应按需验证下载及 Emby 扫描。
+   ```bash
+   SHIPIN_SERVICE_NAME=existing-service SHIPIN_SYSTEMD_SCOPE=user SHIPIN_BINARY=/absolute/path/to/program \
+     ./shipin-service.sh update
+   ```
 
-## 其他部署目录或服务名
+   将示例值替换为刚核实的实际配置；系统服务使用有权限的管理员，并用 `sudo env` 显式传入相同目标参数。
+5. 为新版服务进程设置同样的 `SHIPIN_SERVICE_NAME`、`SHIPIN_SYSTEMD_SCOPE`，在后续正常重启后核对网页更新目标。只更换二进制不会改变原 unit 的环境配置。
+6. 检查 `/healthz` 报告新版本，原任务和媒体可用，再核对下载及 Emby 入库。
 
-| 环境变量 | 默认值 | 作用 |
-| --- | --- | --- |
-| `MOVIEHUB_SYSTEMD_SCOPE` | `user` | `user` 调用 `systemctl --user`；`system` 调用系统级 `systemctl`。 |
-| `MOVIEHUB_SERVICE_NAME` | `video-hub-go` | systemd unit 名，不带 `.service`；升级命令使用小写字母开头，后接小写字母、数字、连字符或下划线。 |
-| `MOVIEHUB_BINARY` | 脚本同目录的 `moviehub`；若不存在，则使用上上级目录的 `bin/moviehub` | `update` 要替换的程序文件；必须是普通文件。 |
-| `MOVIEHUB_HEALTH_URL` | 从 unit 的 `ExecStart --listen` 推导 | 健康检查 URL；仅在 unit 没有 `--listen` 或需覆盖地址时设置，例如 `http://192.168.1.2:4444/healthz`。 |
+也可以从 Release 校验下载后，在停服并备份的前提下手动更换程序。不要在仅改仓库名时搬迁生产目录或删除旧文件。`.moviehub/` 和 `.moviehub.json` 属于既有媒体格式，继续用于归属校验、失败恢复与安全删除。
 
-环境变量只影响**当前命令**。例如管理其他用户服务：
+## 故障排查
 
-```bash
-MOVIEHUB_SERVICE_NAME=my-video-hub \
-MOVIEHUB_BINARY=/home/lee/my-video-hub/bin/moviehub \
-./scripts/moviehub-service.sh health
-```
-
-若按 [Linux 部署说明](linux-deployment.md) 把脚本安装到 `/usr/local/bin`、把程序装到 `/opt/moviehub/bin/moviehub`，则为系统服务显式指定范围与程序路径：
-
-```bash
-MOVIEHUB_SYSTEMD_SCOPE=system MOVIEHUB_SERVICE_NAME=video-hub-go MOVIEHUB_BINARY=/opt/moviehub/bin/moviehub \
-  /usr/local/bin/moviehub-service check-update
-sudo env MOVIEHUB_SYSTEMD_SCOPE=system MOVIEHUB_SERVICE_NAME=video-hub-go MOVIEHUB_BINARY=/opt/moviehub/bin/moviehub \
-  /usr/local/bin/moviehub-service update
-```
-
-若 unit 使用其他名称，请在两条命令中将 `MOVIEHUB_SERVICE_NAME` 替换为 unit 名称（不带 `.service`）。
-
-系统服务的 `update` 需要有权替换程序并重启该 unit；用户服务则以其属主执行。若 `health` 无法从 unit 解析监听地址，可以为单条命令设置 `MOVIEHUB_HEALTH_URL`。端口改为 `4444` 后，旧版 `4488` 地址不应再用于健康检查。
-
-## 常见问题
-
-| 现象 | 先检查 |
+| 现象 | 检查 |
 | --- | --- |
-| `管理命令仅支持运行 systemd 的 Linux` | 是否在 Linux 服务器执行，而非 macOS 本机。 |
-| `无法从服务配置读取监听地址` | unit 的 `ExecStart` 是否带 `--listen`；否则设置 `MOVIEHUB_HEALTH_URL`。 |
-| `无法读取运行中服务的健康接口` | `status`、`logs`、unit 监听地址、服务器本机对 `/healthz` 的访问。 |
-| `在线升级失败` | 错误输出、GitHub 连通性、Release 资产、程序目录写权限与 `logs`。 |
-| `check-update` 显示 `unknown` | 旧程序可能没有在健康接口返回版本；升级成功后再用 `health` 核对。 |
+| 读不到健康接口 | unit 的 `--listen`、本机监听地址，必要时设 `SHIPIN_HEALTH_URL` |
+| 网页提示不支持更新 | 服务进程的变量、MainPID、systemd 工具、目录写权限与作用域 |
+| 找不到新资产 | 是否仍在使用旧脚本，以及 GitHub 最新正式 Release 的资产名 |
+| 升级失败 | 下载错误、SHA256、旧程序备份和 journal 日志；确认是否回滚成功 |
+| Emby 尚未识别 | 共享目录、权限、媒体库类型和扫描进度 |

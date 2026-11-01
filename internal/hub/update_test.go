@@ -16,7 +16,7 @@ import (
 
 func releaseFixture() githubRelease {
 	r := githubRelease{Tag: "v99.0.0", PublishedAt: "2026-10-15T14:33:58Z"}
-	for _, name := range []string{"moviehub-linux-" + runtime.GOARCH, "SHA256SUMS"} {
+	for _, name := range []string{"shipin-linux-" + runtime.GOARCH, "SHA256SUMS"} {
 		r.Assets = append(r.Assets, struct {
 			Name string `json:"name"`
 			URL  string `json:"browser_download_url"`
@@ -27,7 +27,7 @@ func releaseFixture() githubRelease {
 func TestInstallReleaseVerificationAndRollback(t *testing.T) {
 	for _, scenario := range []string{"success", "checksum", "rollback", "rollback-restart-failed"} {
 		t.Run(scenario, func(t *testing.T) {
-			binary := filepath.Join(t.TempDir(), "moviehub")
+			binary := filepath.Join(t.TempDir(), "shipin")
 			old := []byte("old program")
 			next := []byte("\x7fELFnew program")
 			if err := os.WriteFile(binary, old, 0755); err != nil {
@@ -42,7 +42,7 @@ func TestInstallReleaseVerificationAndRollback(t *testing.T) {
 			client.Transport = hlsTransport(func(req *http.Request) (*http.Response, error) {
 				body := string(next)
 				if strings.HasSuffix(req.URL.Path, "SHA256SUMS") {
-					body = checksum + "  moviehub-linux-" + runtime.GOARCH + "\n"
+					body = checksum + "  shipin-linux-" + runtime.GOARCH + "\n"
 				}
 				return &http.Response{StatusCode: 200, Body: io.NopCloser(strings.NewReader(body)), Request: req}, nil
 			})
@@ -102,7 +102,7 @@ func TestServiceNamePatternMatchesSupportedUnitNames(t *testing.T) {
 		name string
 		want bool
 	}{
-		{"video-hub-go", true},
+		{"shipin", true},
 		{"my_video_hub", true},
 		{"-video-hub", false},
 		{"Video-Hub", false},

@@ -6,9 +6,9 @@ import (
 	"fmt"
 	"io"
 	"log/slog"
-	"movie-hub-go/internal/embycheck"
 	"net/http"
 	"net/url"
+	"shipin/internal/embycheck"
 	"strings"
 	"time"
 )

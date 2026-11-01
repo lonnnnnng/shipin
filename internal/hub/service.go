@@ -7,8 +7,8 @@ import (
 	"errors"
 	"fmt"
 	"log/slog"
-	"movie-hub-go/internal/diskspace"
 	"os"
+	"shipin/internal/diskspace"
 	"sync"
 	"time"
 )
@@ -695,5 +695,5 @@ func (s *Service) finishError(job Job, err error) {
 	}
 }
 func (s *Service) String() string {
-	return fmt.Sprintf("Movie Hub Go (%d sources)", len(s.Store.Snapshot().Sources))
+	return fmt.Sprintf("shipin (%d sources)", len(s.Store.Snapshot().Sources))
 }

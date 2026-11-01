@@ -119,7 +119,7 @@ func (c *CMS) get(ctx context.Context, raw string, headers map[string]string, va
 	if err != nil {
 		return errors.New("请求地址无效")
 	}
-	req.Header.Set("User-Agent", "MovieHubGo/0.1")
+	req.Header.Set("User-Agent", "shipin/0.1")
 	for k, v := range headers {
 		req.Header.Set(k, v)
 	}

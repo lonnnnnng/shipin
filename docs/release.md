@@ -19,10 +19,10 @@
    git push origin v0.4.2
    ```
 
-4. 在 [Actions](https://github.com/lonnnnnng/video-hub-go/actions/workflows/release.yml) 确认“发布 Linux Release”运行成功。
+4. 在 [Actions](https://github.com/lonnnnnng/shipin/actions/workflows/release.yml) 确认“发布 Linux Release”运行成功。
 5. 确认公开 Release 的版本、双架构资产、`SHA256SUMS`，必要时重新下载核验。
 
-流水线使用 `go.mod` 声明的 Go 版本，执行竞态测试、静态检查和 JavaScript 语法检查。构建通过后创建草稿，上传 `moviehub-linux-amd64`、`moviehub-linux-arm64` 与 `SHA256SUMS`，重新下载并逐字节比较后才公开为最新版本。发行时间读取 GitHub Release 的真实发布时间。
+流水线使用 `go.mod` 声明的 Go 版本，执行竞态测试、静态检查和 JavaScript 语法检查。构建通过后创建草稿，上传 `shipin-linux-amd64`、`shipin-linux-arm64` 与 `SHA256SUMS`，重新下载并逐字节比较后才公开为最新版本。发行时间读取 GitHub Release 的真实发布时间。
 
 ## 失败与重跑
 

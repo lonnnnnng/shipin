@@ -2,9 +2,9 @@ package hub
 
 import (
 	"errors"
-	"movie-hub-go/internal/diskspace"
 	"os"
 	"path/filepath"
+	"shipin/internal/diskspace"
 	"time"
 )
 

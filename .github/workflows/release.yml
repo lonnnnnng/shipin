@@ -15,7 +15,7 @@ concurrency:
 
 jobs:
   release:
-    if: github.repository == 'lonnnnnng/video-hub-go'
+    if: github.repository == 'lonnnnnng/shipin'
     runs-on: ubuntu-24.04
     timeout-minutes: 20
     permissions:
@@ -59,10 +59,12 @@ jobs:
           for script in internal/hub/web/*.js; do
             node --check "$script"
           done
+          bash -n scripts/build-linux.sh scripts/render-systemd.sh scripts/shipin-service.sh
+          python3 -c 'import ast, pathlib; ast.parse(pathlib.Path("scripts/shipin-update.py").read_text())'
 
       - name: 构建 Linux 双架构程序
         env:
-          MOVIEHUB_VERSION: ${{ env.RELEASE_TAG }}
+          SHIPIN_VERSION: ${{ env.RELEASE_TAG }}
         run: |
           set -euo pipefail
           ./scripts/build-linux.sh
@@ -80,15 +82,18 @@ jobs:
               echo '该版本已公开，不能覆盖，请使用新版本标签' >&2
               exit 1
             }
-            gh release upload "$RELEASE_TAG" dist/moviehub-linux-amd64 dist/moviehub-linux-arm64 dist/SHA256SUMS --clobber
+            gh release upload "$RELEASE_TAG" dist/shipin-linux-amd64 dist/shipin-linux-arm64 dist/SHA256SUMS --clobber
           else
             args=(--draft --verify-tag --title "$RELEASE_TAG")
             if [[ -f "$notes" ]]; then args+=(--notes-file "$notes"); else args+=(--generate-notes); fi
-            gh release create "$RELEASE_TAG" dist/moviehub-linux-amd64 dist/moviehub-linux-arm64 dist/SHA256SUMS "${args[@]}"
+            gh release create "$RELEASE_TAG" dist/shipin-linux-amd64 dist/shipin-linux-arm64 dist/SHA256SUMS "${args[@]}"
           fi
+          # long: 资产集合也必须一致，防止失败草稿重跑时保留旧名称或多余程序。
+          gh release view "$RELEASE_TAG" --json assets --jq '[.assets[].name] | sort' > "$RUNNER_TEMP/release-assets.json"
+          jq -e '. == ["SHA256SUMS", "shipin-linux-amd64", "shipin-linux-arm64"]' "$RUNNER_TEMP/release-assets.json"
           gh release download "$RELEASE_TAG" --dir "$RUNNER_TEMP/release-verify"
           (cd "$RUNNER_TEMP/release-verify" && sha256sum -c SHA256SUMS)
-          for asset in moviehub-linux-amd64 moviehub-linux-arm64 SHA256SUMS; do
+          for asset in shipin-linux-amd64 shipin-linux-arm64 SHA256SUMS; do
             cmp "dist/$asset" "$RUNNER_TEMP/release-verify/$asset"
           done
 
@@ -99,3 +104,9 @@ jobs:
           set -euo pipefail
           gh release edit "$RELEASE_TAG" --draft=false --latest
           gh release view "$RELEASE_TAG" --json tagName,url,publishedAt
+          # long: 公开后的下载入口再次回验，确保用户获取的文件与本次构建一致。
+          gh release download "$RELEASE_TAG" --dir "$RUNNER_TEMP/published-verify"
+          (cd "$RUNNER_TEMP/published-verify" && sha256sum -c SHA256SUMS)
+          for asset in shipin-linux-amd64 shipin-linux-arm64 SHA256SUMS; do
+            cmp "dist/$asset" "$RUNNER_TEMP/published-verify/$asset"
+          done

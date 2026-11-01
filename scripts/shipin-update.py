@@ -16,25 +16,35 @@ import urllib.request
 from urllib.parse import urlsplit
 
 
-REPO = "lonnnnnng/video-hub-go"
+REPO = "lonnnnnng/shipin"
 TRUSTED_HOSTS = {"github.com", "release-assets.githubusercontent.com", "objects.githubusercontent.com"}
 MAX_BINARY = 128 * 1024 * 1024
-SYSTEMCTL = ["systemctl", "--user"] if os.environ.get("MOVIEHUB_SYSTEMD_SCOPE", "user") == "user" else ["systemctl"]
-SERVICE = os.environ.get("MOVIEHUB_SERVICE_NAME", "video-hub-go")
+
+
+def shipin_env(name, default=""):
+    # long: 新变量优先，旧服务环境可以逐步迁移，避免服务范围和程序路径在改名时丢失。
+    return os.environ.get(f"SHIPIN_{name}") or os.environ.get(f"MOVIEHUB_{name}") or default
+
+
+SYSTEMCTL = ["systemctl", "--user"] if shipin_env("SYSTEMD_SCOPE", "user") == "user" else ["systemctl"]
+SERVICE = shipin_env("SERVICE_NAME", "shipin")
 
 
 def default_binary():
     script = Path(__file__).resolve()
-    sibling = script.with_name("moviehub")
-    # long: 生产目录把程序与脚本平铺放置；源码仓库仍从 bin/ 读取，兼容两种布局。
-    return sibling if sibling.is_file() else script.parent.parent / "bin/moviehub"
+    # long: 优先新名称，也可管理保留旧程序名的既有部署；数据和媒体目录不随名称迁移。
+    for candidate in (script.with_name("shipin"), script.with_name("moviehub"),
+                      script.parent.parent / "bin/shipin", script.parent.parent / "bin/moviehub"):
+        if candidate.is_file():
+            return candidate
+    return script.parent.parent / "bin/shipin"
 
 
-BINARY = Path(os.environ["MOVIEHUB_BINARY"]) if os.environ.get("MOVIEHUB_BINARY") else default_binary()
+BINARY = Path(shipin_env("BINARY")) if shipin_env("BINARY") else default_binary()
 
 
 def read_url(url, limit, release_asset=False):
-    req = urllib.request.Request(url, headers={"User-Agent": "video-hub-go-updater", "Accept": "application/vnd.github+json"})
+    req = urllib.request.Request(url, headers={"User-Agent": "shipin-updater", "Accept": "application/vnd.github+json"})
     with urllib.request.urlopen(req, timeout=90) as response:
         target = urlsplit(response.geturl())
         if target.scheme != "https" or (release_asset and target.hostname not in TRUSTED_HOSTS):
@@ -60,7 +70,7 @@ def asset(release, name):
 
 
 def health_url():
-    explicit = os.environ.get("MOVIEHUB_HEALTH_URL")
+    explicit = shipin_env("HEALTH_URL")
     if explicit:
         url = explicit
     else:
@@ -68,7 +78,7 @@ def health_url():
         result = subprocess.run([*SYSTEMCTL, "show", "-p", "ExecStart", "--value", f"{SERVICE}.service"], check=True, capture_output=True, text=True)
         match = re.search(r"(?:^|\s)--listen(?:=|\s+)([^\s;]+)", result.stdout)
         if not match:
-            raise RuntimeError("无法从服务配置读取监听地址，请设置 MOVIEHUB_HEALTH_URL")
+            raise RuntimeError("无法从服务配置读取监听地址，请设置 SHIPIN_HEALTH_URL")
         listen = match.group(1)
         if listen.startswith("0.0.0.0:"):
             listen = "127.0.0.1:" + listen.rsplit(":", 1)[1]
@@ -127,7 +137,7 @@ def apply_update(release, name, url):
     if not BINARY.is_file() or BINARY.is_symlink():
         raise RuntimeError("当前程序路径不是普通文件")
     # long: 先把已校验的新程序写入同目录临时文件，再原子替换；旧程序留作启动失败时的回滚依据。
-    with tempfile.NamedTemporaryFile(prefix=".moviehub-update-", dir=BINARY.parent, delete=False) as stage:
+    with tempfile.NamedTemporaryFile(prefix=".shipin-update-", dir=BINARY.parent, delete=False) as stage:
         stage_path = Path(stage.name)
         try:
             stage.write(binary)
@@ -162,7 +172,7 @@ def apply_update(release, name, url):
 
 def main():
     if len(sys.argv) != 2 or sys.argv[1] not in ("health", "check-update", "update"):
-        raise RuntimeError("用法：moviehub-update.py {health|check-update|update}")
+        raise RuntimeError("用法：shipin-update.py {health|check-update|update}")
     if sys.argv[1] == "health":
         url = health_url()
         print(f"服务健康：{current_version(url)}")
@@ -176,7 +186,7 @@ def main():
     current = current_version(url)
     release = latest_release()
     latest = release["tag_name"]
-    name = f"moviehub-linux-{arch}"
+    name = f"shipin-linux-{arch}"
     asset(release, name)
     asset(release, "SHA256SUMS")
     print(f"当前版本：{current}；最新版本：{latest}")

@@ -3,8 +3,8 @@ package hub
 import (
 	"context"
 	"log/slog"
-	"movie-hub-go/internal/embycheck"
 	"path/filepath"
+	"shipin/internal/embycheck"
 	"time"
 )
 

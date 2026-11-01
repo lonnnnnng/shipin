@@ -246,7 +246,7 @@ func (c *CMS) poster(ctx context.Context, raw string) ([]byte, string, error) {
 	if err != nil {
 		return nil, "", errors.New("海报请求地址无效")
 	}
-	req.Header.Set("User-Agent", "Mozilla/5.0 VideoHubGo")
+	req.Header.Set("User-Agent", "Mozilla/5.0 shipin")
 	res, err := c.Client.Do(req)
 	if err != nil {
 		return nil, "", errors.New("海报连接失败或超时")
@@ -278,7 +278,7 @@ func writePoster(root *os.Root, dir, ext string, data []byte) error {
 	if err := checkJobFile(root, dir); err != nil {
 		return err
 	}
-	tmp := filepath.Join(dir, ".moviehub-poster-"+uid()+".tmp")
+	tmp := filepath.Join(dir, ".shipin-poster-"+uid()+".tmp")
 	f, err := root.OpenFile(tmp, os.O_CREATE|os.O_EXCL|os.O_WRONLY, 0644)
 	if err != nil {
 		return errors.New("创建临时海报失败")

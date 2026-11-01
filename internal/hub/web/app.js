@@ -37,9 +37,9 @@ function icon(name) {
 }
 function setButtonIcon(node, name, label) {node.replaceChildren(icon(name));node.classList.add('icon-button');node.title=label;node.setAttribute('aria-label',label);}
 function iconButton(name, label, action) {const node=button('',action);setButtonIcon(node,name,label);return node;}
-function navigate(path, message) { if (message) sessionStorage.setItem('moviehubNotice', message); window.location.href = path; }
-const flash = sessionStorage.getItem('moviehubNotice');
-if (flash) { sessionStorage.removeItem('moviehubNotice'); notice(flash); }
+function navigate(path, message) { if (message) sessionStorage.setItem('shipinNotice', message); window.location.href = path; }
+const flash = sessionStorage.getItem('shipinNotice');
+if (flash) { sessionStorage.removeItem('shipinNotice'); notice(flash); }
 function empty(target,text) { target.replaceChildren(el('div',text,'empty')); }
 function updateSources() {const select = $('searchSource'), selected = select.value, defaultID = snapshot.state.sources.find(s => s.enabled && s.default)?.id || ''; select.replaceChildren(new Option('全部已启用资源站','')); snapshot.state.sources.filter(s => s.enabled).forEach(s => select.add(new Option(s.name,s.id))); if (!sourceSelectionInitialized || selected === previousDefaultID || (selected && !snapshot.state.sources.some(s => s.enabled && s.id === selected))) select.value = defaultID; else select.value = selected; sourceSelectionInitialized = true; previousDefaultID = defaultID; return defaultID;}
 async function refresh() {
